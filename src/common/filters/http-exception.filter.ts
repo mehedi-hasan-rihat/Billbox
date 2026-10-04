@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { Prisma } from '../../generated/prisma/client.js';
 import type { Request, Response } from 'express';
 
 @Catch()
@@ -31,8 +32,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = (r['message'] as string) ?? message;
         error = (r['error'] as string) ?? error;
       }
+    } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      // Known Prisma errors (constraint violations, not found, etc.)
+      this.logger.error(`Prisma error [${exception.code}]: ${exception.message}`, exception.stack);
+      status = HttpStatus.BAD_REQUEST;
+      message = 'Database operation failed';
+    } else if (exception instanceof Prisma.PrismaClientInitializationError) {
+      // DB unreachable, wrong credentials, database doesn't exist, etc.
+      this.logger.error(`Prisma init error: ${exception.message}`, exception.stack);
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      message = 'Service temporarily unavailable';
     } else if (exception instanceof Error) {
-      message = exception.message;
+      // Any other unhandled error — log internally, never expose to client
       this.logger.error(`Unhandled exception: ${exception.message}`, exception.stack);
     }
 
