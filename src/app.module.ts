@@ -7,6 +7,9 @@ import configuration from './config/configuration.js';
 import { validateEnv } from './config/env.validation.js';
 import { DatabaseModule } from './database/database.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { BillsModule } from './modules/bills/bills.module.js';
+import { InboxModule } from './modules/inbox/inbox.module.js';
+import { BillersModule } from './modules/billers/billers.module.js';
 
 @Module({
   imports: [
@@ -17,6 +20,9 @@ import { AuthModule } from './modules/auth/auth.module.js';
     }),
     DatabaseModule,
     AuthModule,
+    BillsModule,
+    InboxModule,
+    BillersModule,
   ],
   controllers: [],
   providers: [

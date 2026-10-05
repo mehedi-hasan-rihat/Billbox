@@ -1,0 +1,342 @@
+# Bills API
+
+Base path: `/api/v1/bills`
+
+All endpoints require authentication: `Authorization: Bearer <token>`
+
+---
+
+## Bill Status
+
+The `status` field in every API response represents the **effective current state** of the bill.
+Three values are persisted in the database. Two are computed at query time and never stored.
+
+| Status | Persisted in DB | Set by | Meaning |
+|--------|----------------|--------|---------|
+| `INBOX` | ✅ | System | Arrived via BillBox ID, not yet confirmed by recipient |
+| `UNPAID` | ✅ | User | Confirmed/created, payment not yet made |
+| `PAID` | ✅ | User | Payment completed |
+| `UPCOMING` | ❌ computed | System | `UNPAID` + due date is in the future |
+| `DUE_TODAY` | ❌ computed | System | `UNPAID` + due date is today |
+| `OVERDUE` | ❌ computed | System | `UNPAID` + due date has passed |
+
+### How it works
+
+The DB only ever holds `INBOX`, `UNPAID`, or `PAID`. On every read, the system computes the
+real effective status from `status + dueDate` and overwrites `status` in the response.
+No scheduler or cron job is needed — the value is always accurate to the second.
+
+```
+DB stores:   UNPAID  (dueDate: 2026-10-08)
+Today is:    2026-10-05
+API returns: UPCOMING   ← due date in the future
+```
+
+```
+DB stores:   UNPAID  (dueDate: 2026-10-05)
+Today is:    2026-10-05
+API returns: DUE_TODAY  ← due date is today
+```
+
+```
+DB stores:   UNPAID  (dueDate: 2026-10-05)
+Today is:    2026-10-07
+API returns: OVERDUE    ← due date passed
+```
+
+```
+DB stores:   UNPAID  (no dueDate)
+API returns: UNPAID     ← no due date, nothing to compute
+```
+
+### Why not store UPCOMING / OVERDUE in the DB?
+
+Storing them would require a background job to update bills as time passes.
+If that job is delayed or fails, statuses become stale. Computing at read time
+is always correct, zero maintenance, and needs no infrastructure.
+
+---
+
+## Bill Source
+
+| Source | Meaning |
+|--------|---------|
+| `MANUAL` | Created by the user themselves |
+| `INBOX` | Arrived via BillBox ID from another user |
+
+---
+
+## Categories
+
+`INTERNET` `ELECTRICITY` `GAS` `WATER` `MOBILE` `RESTAURANT` `SHOPPING` `SUBSCRIPTION` `RENT` `EDUCATION` `OTHER`
+
+---
+
+## Payment Methods
+
+`CASH` `BKASH` `NAGAD` `BANK` `CARD` `OTHER`
+
+---
+
+## Endpoints
+
+### POST /bills
+
+Create a bill manually.
+
+**Request Body**
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| name | string | Yes | Bill title |
+| category | BillCategory | Yes | See categories above |
+| amount | string (decimal) | Yes | e.g. `"1200.00"` |
+| billDate | ISO date string | No | Date printed on the bill |
+| dueDate | ISO date string | No | Payment deadline |
+| note | string | No | Free text note |
+| senderBillerId | string | No | ID of a biller from your biller list |
+| status | `UNPAID` \| `PAID` | No | Defaults to `UNPAID` |
+| paidAt | ISO date string | Required if `status=PAID` | |
+| paidAmount | string (decimal) | No | |
+| paymentMethod | PaymentMethod | No | |
+| paymentReference | string | No | Transaction ID / receipt number |
+
+**Example Request**
+
+```bash
+curl -X POST http://localhost:3000/api/v1/bills \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "October Internet Bill",
+    "category": "INTERNET",
+    "amount": "1200.00",
+    "dueDate": "2026-10-10",
+    "status": "UNPAID"
+  }'
+```
+
+**Example Response (201)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "clx...",
+    "userId": "clx...",
+    "source": "MANUAL",
+    "name": "October Internet Bill",
+    "category": "INTERNET",
+    "amount": "1200.00",
+    "billDate": null,
+    "dueDate": "2026-10-10T00:00:00.000Z",
+    "note": null,
+    "senderBillerId": null,
+    "senderBiller": null,
+    "status": "UPCOMING",  ← computed: UNPAID + dueDate in the future    "paidAmount": null,
+    "paymentMethod": null,
+    "paymentReference": null,
+    "createdAt": "2026-10-05T08:00:00.000Z",
+    "updatedAt": "2026-10-05T08:00:00.000Z"
+  },
+  "timestamp": "2026-10-05T08:00:00.000Z"
+}
+```
+
+**Errors**
+
+| Status | Message |
+|--------|---------|
+| 400 | `paidAt` is required when creating a bill as PAID |
+| 400 | Validation errors |
+| 404 | Contact not found (if `senderBillerId` is invalid) |
+
+---
+
+### GET /bills
+
+List all bills owned by the authenticated user.
+
+**Example Request**
+
+```bash
+curl http://localhost:3000/api/v1/bills \
+  -H "Authorization: Bearer <token>"
+```
+
+**Example Response (200)**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "clx...",
+      "name": "October Internet Bill",
+      "status": "UNPAID",
+      ...
+    }
+  ],
+  "timestamp": "2026-10-05T08:00:00.000Z"
+}
+```
+
+---
+
+### GET /bills/:id
+
+Get a single bill by ID.
+
+**Example Request**
+
+```bash
+curl http://localhost:3000/api/v1/bills/clx... \
+  -H "Authorization: Bearer <token>"
+```
+
+**Errors**
+
+| Status | Message |
+|--------|---------|
+| 404 | Bill not found |
+
+---
+
+### PATCH /bills/:id
+
+Edit bill details. Does not allow status changes — use dedicated endpoints for that.
+
+**Request Body** (all fields optional)
+
+| Field | Type | Notes |
+|-------|------|-------|
+| name | string | |
+| category | BillCategory | |
+| amount | string (decimal) | |
+| billDate | ISO date string | |
+| dueDate | ISO date string | |
+| senderBillerId | string \| null | Set to `null` to remove |
+
+**Errors**
+
+| Status | Message |
+|--------|---------|
+| 404 | Bill not found |
+| 404 | Biller not found |
+
+---
+
+### GET /bills/:id/timeline
+
+Get the full event history for a bill in chronological order.
+
+**Example Response (200)**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "clx...",
+      "billId": "clx...",
+      "type": "CREATED",
+      "actor": {
+        "id": "clx...",
+        "email": "mehedi@example.com",
+        "name": "Mehedi",
+        "billBoxId": "BB-A1B2-C3D4-E5F6"
+      },
+      "metadata": { "status": "UNPAID", "source": "MANUAL" },
+      "createdAt": "2026-10-05T08:00:00.000Z"
+    },
+    {
+      "type": "PAID",
+      "metadata": { "paidAt": "2026-10-08", "method": "BKASH" },
+      ...
+    }
+  ],
+  "timestamp": "2026-10-05T08:00:00.000Z"
+}
+```
+
+**Event types:** `CREATED` `SENT` `RECEIVED` `CONFIRMED` `PAID` `EDITED` `NOTE_ADDED` `PAYMENT_UPDATED`
+
+---
+
+### POST /bills/:id/pay
+
+Mark an `UNPAID` bill as `PAID` and record payment details.
+
+**Request Body**
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| paidAt | ISO date string | Yes | When payment was made |
+| paidAmount | string (decimal) | No | Actual amount paid |
+| paymentMethod | PaymentMethod | No | |
+| paymentReference | string | No | Transaction ID / receipt number |
+
+**Example Request**
+
+```bash
+curl -X POST http://localhost:3000/api/v1/bills/clx.../pay \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paidAt": "2026-10-08",
+    "paidAmount": "1200.00",
+    "paymentMethod": "BKASH",
+    "paymentReference": "TXN8FK2910"
+  }'
+```
+
+**Errors**
+
+| Status | Message |
+|--------|---------|
+| 400 | Bill is already paid |
+| 400 | Only UNPAID bills can be marked as paid |
+| 404 | Bill not found |
+
+---
+
+### PATCH /bills/:id/payment
+
+Update payment metadata on an already `PAID` bill.
+
+**Request Body** (all fields optional)
+
+| Field | Type |
+|-------|------|
+| paidAt | ISO date string |
+| paidAmount | string (decimal) |
+| paymentMethod | PaymentMethod |
+| paymentReference | string |
+
+**Errors**
+
+| Status | Message |
+|--------|---------|
+| 400 | Payment metadata can only be updated on a PAID bill |
+| 404 | Bill not found |
+
+---
+
+### PATCH /bills/:id/notes
+
+Add or update the note on a bill. Send `null` to clear it.
+
+**Request Body**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| note | string \| null | Pass `null` to remove the note |
+
+**Example Request**
+
+```bash
+curl -X PATCH http://localhost:3000/api/v1/bills/clx.../notes \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{ "note": "Paid via bKash agent" }'
+```
