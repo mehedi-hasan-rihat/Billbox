@@ -22,47 +22,42 @@ Three values are persisted in the database. Two are computed at query time and n
 
 ### How it works
 
-The DB only ever holds `INBOX`, `UNPAID`, or `PAID`. On every read, the system computes the
-real effective status from `status + dueDate` and overwrites `status` in the response.
-No scheduler or cron job is needed — the value is always accurate to the second.
+The DB only ever holds `INBOX`, `UNPAID`, or `PAID`. On every read, the system computes the real effective status from `status + dueDate` and overwrites `status` in the response. No scheduler or cron job needed — always accurate to the second.
 
 ```
-DB stores:   UNPAID  (dueDate: 2026-10-08)
-Today is:    2026-10-05
-API returns: UPCOMING   ← due date in the future
-```
-
-```
-DB stores:   UNPAID  (dueDate: 2026-10-05)
-Today is:    2026-10-05
-API returns: DUE_TODAY  ← due date is today
-```
-
-```
-DB stores:   UNPAID  (dueDate: 2026-10-05)
-Today is:    2026-10-07
-API returns: OVERDUE    ← due date passed
-```
-
-```
-DB stores:   UNPAID  (no dueDate)
-API returns: UNPAID     ← no due date, nothing to compute
+DB stores:   UNPAID  (dueDate: 2026-10-08)  →  API returns: UPCOMING
+DB stores:   UNPAID  (dueDate: 2026-10-05)  →  API returns: DUE_TODAY
+DB stores:   UNPAID  (dueDate: 2026-10-03)  →  API returns: OVERDUE
+DB stores:   UNPAID  (no dueDate)           →  API returns: UNPAID
 ```
 
 ### Why not store UPCOMING / OVERDUE in the DB?
 
-Storing them would require a background job to update bills as time passes.
-If that job is delayed or fails, statuses become stale. Computing at read time
-is always correct, zero maintenance, and needs no infrastructure.
+Storing them requires a background job to update bills as time passes. If that job fails or is delayed, statuses become stale. Computing at read time is always correct, zero maintenance, no infrastructure needed.
 
 ---
 
 ## Bill Source
 
+How the bill entered BillBox. Always one of:
+
 | Source | Meaning |
 |--------|---------|
-| `MANUAL` | Created by the user themselves |
+| `MANUAL` | Created by the user themselves (including recurring-generated bills) |
 | `INBOX` | Arrived via BillBox ID from another user |
+
+---
+
+## Bill Type
+
+What kind of bill it is:
+
+| Type | Meaning |
+|------|---------|
+| `ONE_TIME` | A regular single bill |
+| `RECURRING` | Auto-generated from a recurring rule |
+
+A recurring-generated bill has `source = MANUAL` and `type = RECURRING`. Use `type` to distinguish recurring bills from one-time bills.
 
 ---
 
@@ -125,6 +120,7 @@ curl -X POST http://localhost:3000/api/v1/bills \
     "id": "clx...",
     "userId": "clx...",
     "source": "MANUAL",
+    "type": "ONE_TIME",
     "name": "October Internet Bill",
     "category": "INTERNET",
     "amount": "1200.00",
@@ -133,7 +129,10 @@ curl -X POST http://localhost:3000/api/v1/bills \
     "note": null,
     "senderBillerId": null,
     "senderBiller": null,
-    "status": "UPCOMING",  ← computed: UNPAID + dueDate in the future    "paidAmount": null,
+    "recurringRuleId": null,
+    "status": "UPCOMING",
+    "paidAt": null,
+    "paidAmount": null,
     "paymentMethod": null,
     "paymentReference": null,
     "createdAt": "2026-10-05T08:00:00.000Z",
@@ -149,7 +148,7 @@ curl -X POST http://localhost:3000/api/v1/bills \
 |--------|---------|
 | 400 | `paidAt` is required when creating a bill as PAID |
 | 400 | Validation errors |
-| 404 | Contact not found (if `senderBillerId` is invalid) |
+| 404 | Biller not found (if `senderBillerId` is invalid) |
 
 ---
 
@@ -163,6 +162,8 @@ List the authenticated user's bills with optional search, filtering, sorting, an
 |-------|------|---------|-------|
 | search | string | — | Case-insensitive search across bill name and biller name |
 | category | BillCategory | — | Filter by category |
+| source | `MANUAL` \| `INBOX` | — | Filter by how the bill entered BillBox |
+| type | `ONE_TIME` \| `RECURRING` | — | Filter by bill type |
 | status | BillStatusFilter | — | `INBOX` `UNPAID` `UPCOMING` `DUE_TODAY` `OVERDUE` `PAID` |
 | billDateFrom | ISO date | — | Bill date range start |
 | billDateTo | ISO date | — | Bill date range end |
@@ -175,7 +176,7 @@ List the authenticated user's bills with optional search, filtering, sorting, an
 
 **Status filter behaviour**
 
-`UPCOMING`, `DUE_TODAY`, and `OVERDUE` are translated into DB conditions at query time — no stored computed values:
+`UPCOMING`, `DUE_TODAY`, and `OVERDUE` are translated into DB conditions at query time:
 
 | Filter | DB condition |
 |--------|-------------|
@@ -190,6 +191,9 @@ List the authenticated user's bills with optional search, filtering, sorting, an
 ```bash
 # All overdue bills
 GET /api/v1/bills?status=OVERDUE
+
+# All recurring bills
+GET /api/v1/bills?type=RECURRING
 
 # Internet bills due this month, sorted by due date
 GET /api/v1/bills?category=INTERNET&dueDateFrom=2026-10-01&dueDateTo=2026-10-31&sort=dueDate&order=asc
@@ -207,11 +211,14 @@ GET /api/v1/bills?search=internet&page=2&limit=10
     "data": [
       {
         "id": "clx...",
+        "source": "MANUAL",
+        "type": "ONE_TIME",
         "name": "October Internet Bill",
         "status": "UPCOMING",
         "category": "INTERNET",
         "amount": "1200.00",
         "dueDate": "2026-10-10T00:00:00.000Z",
+        "recurringRuleId": null,
         ...
       }
     ],
@@ -255,7 +262,7 @@ curl http://localhost:3000/api/v1/bills/clx... \
 
 ### PATCH /bills/:id
 
-Edit bill details. Does not allow status changes — use dedicated endpoints for that.
+Edit bill details. Status transitions are not allowed here — use dedicated endpoints.
 
 **Request Body** (all fields optional)
 
@@ -310,7 +317,8 @@ Get the full event history for a bill in chronological order.
 }
 ```
 
-**Event types:** `CREATED` `SENT` `RECEIVED` `CONFIRMED` `PAID` `EDITED` `NOTE_ADDED` `PAYMENT_UPDATED`
+**Event types:**
+`CREATED` `SENT` `RECEIVED` `CONFIRMED` `PAID` `EDITED` `NOTE_ADDED` `PAYMENT_UPDATED` `RECURRING_GENERATED`
 
 ---
 

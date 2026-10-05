@@ -279,6 +279,8 @@ export class BillsService {
       }),
 
       ...(dto.category && { category: dto.category }),
+      ...(dto.source && { source: dto.source }),
+      ...(dto.type && { type: dto.type }),
 
       // Bill date range
       ...(dto.billDateFrom || dto.billDateTo ? {

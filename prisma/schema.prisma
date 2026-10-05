@@ -45,8 +45,25 @@ enum PaymentMethod {
 
 // How the bill entered BillBox
 enum BillSource {
-  MANUAL // User created it themselves
+  MANUAL // User created it themselves (includes recurring-generated bills)
   INBOX  // Arrived via BillBox ID from another user
+}
+
+enum BillType {
+  ONE_TIME  // A regular single bill
+  RECURRING // Generated from a recurring rule
+}
+
+enum RecurringFrequency {
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum RecurringStatus {
+  ACTIVE
+  PAUSED
+  STOPPED
 }
 
 // Every meaningful thing that happens to a bill
@@ -57,8 +74,9 @@ enum BillEventType {
   CONFIRMED  // Inbox bill confirmed by recipient
   PAID       // Bill marked as paid
   EDITED     // Bill details edited
-  NOTE_ADDED // Note added or updated
+  NOTE_ADDED      // Note added or updated
   PAYMENT_UPDATED // Payment record updated
+  RECURRING_GENERATED // Bill generated from a recurring rule
 }
 
 // ── Models ─────────────────────────────────────────────
@@ -77,6 +95,7 @@ model User {
   sentBills     Bill[]     @relation("SenderBills")
   billers       Biller[]
   billEvents    BillEvent[]
+  recurringRules RecurringRule[]
 
   @@map("users")
 }
@@ -116,6 +135,7 @@ model Bill {
 
   // Origin
   source BillSource @default(MANUAL)
+  type   BillType   @default(ONE_TIME)
 
   // Core info
   name     String
@@ -148,6 +168,10 @@ model Bill {
   paymentMethod    PaymentMethod?
   paymentReference String?
 
+  // Recurring rule link (null for one-off bills)
+  recurringRuleId String?
+  recurringRule   RecurringRule? @relation(fields: [recurringRuleId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -159,9 +183,51 @@ model Bill {
   @@index([userId, dueDate])
   @@index([userId, category])
   @@index([userId, source])
+  @@index([userId, type])
   @@index([userId, billDate])
   @@index([userId, amount])
   @@map("bills")
+}
+
+// A recurring rule is a template for generating bills automatically.
+// Generated bills link back to this rule via recurringRuleId.
+model RecurringRule {
+  id     String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Template fields — copied into each generated bill
+  name           String
+  category       BillCategory
+  amount         Decimal      @db.Decimal(12, 2)
+  note           String?
+  senderBillerId String?
+
+  // Recurrence schedule
+  frequency          RecurringFrequency
+  // For MONTHLY: day of month (1–28). For WEEKLY: day of week (0=Sun–6=Sat). For YEARLY: stored as MM-DD string.
+  dayRule            String
+
+  // How many days before the due date to generate the bill
+  generateDaysBefore Int @default(5)
+
+  status         RecurringStatus @default(ACTIVE)
+
+  // Scheduler state — next time a bill should be generated
+  nextGenerateAt DateTime
+
+  // When recurrence ends (null = runs forever)
+  endsAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  generatedBills Bill[]
+
+  @@index([status, nextGenerateAt])
+  @@index([userId])
+  @@map("recurring_rules")
 }
 
 // Full audit trail for a bill — one row per event
