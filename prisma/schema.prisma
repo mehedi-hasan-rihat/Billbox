@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider            = "prisma-client"
   output              = "../src/generated/prisma"
@@ -12,6 +10,55 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ── Enums ──────────────────────────────────────────────
+
+enum BillStatus {
+  INBOX  // Arrived via inbox, not yet confirmed
+  UNPAID // Confirmed/created, payment not yet made
+  PAID   // Payment completed
+}
+
+enum BillCategory {
+  INTERNET
+  ELECTRICITY
+  GAS
+  WATER
+  MOBILE
+  RESTAURANT
+  SHOPPING
+  SUBSCRIPTION
+  RENT
+  EDUCATION
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  BKASH
+  NAGAD
+  BANK
+  CARD
+  OTHER
+}
+
+// How the bill entered BillBox
+enum BillSource {
+  MANUAL // User created it themselves
+  INBOX  // Arrived via BillBox ID from another user
+}
+
+// Every meaningful thing that happens to a bill
+enum BillEventType {
+  CREATED    // Bill created manually
+  SENT       // Bill sent to a BillBox ID
+  RECEIVED   // Bill arrived in recipient's inbox
+  CONFIRMED  // Inbox bill confirmed by recipient
+  PAID       // Bill marked as paid
+  EDITED     // Bill details edited
+  NOTE_ADDED // Note added or updated
+  PAYMENT_UPDATED // Payment record updated
 }
 
 // ── Models ─────────────────────────────────────────────
@@ -25,5 +72,127 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  bills         Bill[]     @relation("OwnerBills")
+  receivedBills Bill[]     @relation("ReceiverBills")
+  sentBills     Bill[]     @relation("SenderBills")
+  billers       Biller[]
+  billEvents    BillEvent[]
+
   @@map("users")
+}
+
+// A biller is a sender/provider in the user's personal list.
+// Can be a BillBox user (billBoxId set) or an external party.
+model Biller {
+  id        String  @id @default(cuid())
+
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+
+  // Set if this biller is a BillBox user — enables direct inbox sending
+  billBoxId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bills     Bill[]
+
+  @@index([userId])
+  @@index([userId, billBoxId])
+  @@map("billers")
+}
+
+model Bill {
+  id     String @id @default(cuid())
+
+  // Ownership
+  userId String
+  user   User   @relation("OwnerBills", fields: [userId], references: [id])
+
+  // Origin
+  source BillSource @default(MANUAL)
+
+  // Core info
+  name     String
+  category BillCategory
+  amount   Decimal      @db.Decimal(12, 2)
+  billDate DateTime?
+  dueDate  DateTime?
+  note     String?
+
+  // Sender biller (optional — who issued/sent the bill)
+  senderBillerId  String?
+  senderBiller    Biller? @relation(fields: [senderBillerId], references: [id])
+
+  // Payment state
+  status BillStatus @default(UNPAID)
+
+  // Inbox-specific (null for manually created bills)
+  confirmedStatus BillStatus?
+  receiverId      String?
+  receiver        User?       @relation("ReceiverBills", fields: [receiverId], references: [id])
+  senderId        String?
+  senderUser      User?       @relation("SenderBills", fields: [senderId], references: [id])
+  sentAt          DateTime?   // when sender sent it
+  receivedAt      DateTime?   // when it landed in recipient's inbox
+  confirmedAt     DateTime?   // when recipient confirmed it
+
+  // Payment record
+  paidAt           DateTime?
+  paidAmount       Decimal?       @db.Decimal(12, 2)
+  paymentMethod    PaymentMethod?
+  paymentReference String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attachments BillAttachment[]
+  events      BillEvent[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, dueDate])
+  @@index([userId, category])
+  @@index([userId, source])
+  @@map("bills")
+}
+
+// Full audit trail for a bill — one row per event
+model BillEvent {
+  id      String        @id @default(cuid())
+  billId  String
+  bill    Bill          @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  type    BillEventType
+
+  // Who triggered it (null for system-generated events)
+  actorId String?
+  actor   User?         @relation(fields: [actorId], references: [id])
+
+  // Extra context — e.g. { from: 'INBOX', to: 'UNPAID' } or { field: 'amount', old: '1000', new: '1200' }
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([billId])
+  @@index([billId, type])
+  @@map("bill_events")
+}
+
+model BillAttachment {
+  id        String   @id @default(cuid())
+  billId    String
+  bill      Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
+  fileName  String
+  fileType  String
+  fileSize  Int
+  url       String
+  createdAt DateTime @default(now())
+
+  @@map("bill_attachments")
 }
