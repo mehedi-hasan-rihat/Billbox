@@ -155,13 +155,47 @@ curl -X POST http://localhost:3000/api/v1/bills \
 
 ### GET /bills
 
-List all bills owned by the authenticated user.
+List the authenticated user's bills with optional search, filtering, sorting, and pagination. All parameters are optional and composable.
 
-**Example Request**
+**Query Parameters**
+
+| Param | Type | Default | Notes |
+|-------|------|---------|-------|
+| search | string | — | Case-insensitive search across bill name and biller name |
+| category | BillCategory | — | Filter by category |
+| status | BillStatusFilter | — | `INBOX` `UNPAID` `UPCOMING` `DUE_TODAY` `OVERDUE` `PAID` |
+| billDateFrom | ISO date | — | Bill date range start |
+| billDateTo | ISO date | — | Bill date range end |
+| dueDateFrom | ISO date | — | Due date range start |
+| dueDateTo | ISO date | — | Due date range end |
+| sort | string | `createdAt` | `billDate` `dueDate` `amount` `createdAt` |
+| order | string | `desc` | `asc` \| `desc` |
+| page | number | `1` | Min: 1 |
+| limit | number | `20` | Min: 1, Max: 100 |
+
+**Status filter behaviour**
+
+`UPCOMING`, `DUE_TODAY`, and `OVERDUE` are translated into DB conditions at query time — no stored computed values:
+
+| Filter | DB condition |
+|--------|-------------|
+| `UPCOMING` | `status = UNPAID AND dueDate > today` |
+| `DUE_TODAY` | `status = UNPAID AND dueDate = today` |
+| `OVERDUE` | `status = UNPAID AND dueDate < today` |
+| `UNPAID` | `status = UNPAID AND dueDate IS NULL` |
+| `INBOX`, `PAID` | `status = <value>` |
+
+**Example Requests**
 
 ```bash
-curl http://localhost:3000/api/v1/bills \
-  -H "Authorization: Bearer <token>"
+# All overdue bills
+GET /api/v1/bills?status=OVERDUE
+
+# Internet bills due this month, sorted by due date
+GET /api/v1/bills?category=INTERNET&dueDateFrom=2026-10-01&dueDateTo=2026-10-31&sort=dueDate&order=asc
+
+# Search by name, page 2
+GET /api/v1/bills?search=internet&page=2&limit=10
 ```
 
 **Example Response (200)**
@@ -169,17 +203,34 @@ curl http://localhost:3000/api/v1/bills \
 ```json
 {
   "success": true,
-  "data": [
-    {
-      "id": "clx...",
-      "name": "October Internet Bill",
-      "status": "UNPAID",
-      ...
+  "data": {
+    "data": [
+      {
+        "id": "clx...",
+        "name": "October Internet Bill",
+        "status": "UPCOMING",
+        "category": "INTERNET",
+        "amount": "1200.00",
+        "dueDate": "2026-10-10T00:00:00.000Z",
+        ...
+      }
+    ],
+    "meta": {
+      "total": 42,
+      "page": 1,
+      "limit": 20,
+      "totalPages": 3
     }
-  ],
+  },
   "timestamp": "2026-10-05T08:00:00.000Z"
 }
 ```
+
+**Errors**
+
+| Status | Message |
+|--------|---------|
+| 400 | Validation errors (invalid category, status, sort field, etc.) |
 
 ---
 

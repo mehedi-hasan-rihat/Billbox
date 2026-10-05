@@ -159,6 +159,8 @@ model Bill {
   @@index([userId, dueDate])
   @@index([userId, category])
   @@index([userId, source])
+  @@index([userId, billDate])
+  @@index([userId, amount])
   @@map("bills")
 }
 
