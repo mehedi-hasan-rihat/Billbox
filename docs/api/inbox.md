@@ -48,6 +48,7 @@ curl -X POST http://localhost:3000/api/v1/inbox/send \
   "data": {
     "id": "clx...",
     "source": "INBOX",
+    "type": "ONE_TIME",
     "status": "INBOX",
     "senderId": "clx...",
     "receiverId": "clx...",
@@ -146,7 +147,7 @@ curl -X POST http://localhost:3000/api/v1/inbox/clx.../confirm \
   "success": true,
   "data": {
     "id": "clx...",
-    "status": "UPCOMING",  ← computed: UNPAID + dueDate within 3 days
+    "status": "UPCOMING",
     "confirmedAt": "2026-10-05T09:00:00.000Z",
     ...
   },

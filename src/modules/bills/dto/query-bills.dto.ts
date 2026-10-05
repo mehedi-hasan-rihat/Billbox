@@ -8,7 +8,7 @@ import {
   Min,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { BillCategory } from '../../../generated/prisma/enums.js';
+import { BillCategory, BillSource, BillType } from '../../../generated/prisma/enums.js';
 import type { ApiBillStatus } from '../../../common/helpers/bill-status.helper.js';
 
 export type BillSortField = 'billDate' | 'dueDate' | 'amount' | 'createdAt';
@@ -27,6 +27,16 @@ export class QueryBillsDto {
   @IsEnum(BillCategory)
   @IsOptional()
   category?: BillCategory;
+
+  // Filter by source
+  @IsEnum(BillSource)
+  @IsOptional()
+  source?: BillSource;
+
+  // Filter by type
+  @IsEnum(BillType)
+  @IsOptional()
+  type?: BillType;
 
   // Filter by lifecycle status (including computed UPCOMING, DUE_TODAY, OVERDUE)
   @IsEnum(['INBOX', 'UNPAID', 'UPCOMING', 'DUE_TODAY', 'OVERDUE', 'PAID'])
