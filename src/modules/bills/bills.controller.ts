@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
@@ -13,6 +14,7 @@ import type { JwtPayload } from '../../common/decorators/current-user.decorator.
 import { BillsService } from './bills.service.js';
 import { CreateBillDto } from './dto/create-bill.dto.js';
 import { EditBillDto } from './dto/edit-bill.dto.js';
+import { QueryBillsDto } from './dto/query-bills.dto.js';
 import { PayBillDto } from './dto/pay-bill.dto.js';
 import { UpdatePaymentDto } from './dto/update-payment.dto.js';
 import { UpdateNotesDto } from './dto/update-notes.dto.js';
@@ -28,8 +30,8 @@ export class BillsController {
   }
 
   @Get()
-  list(@CurrentUser() user: JwtPayload) {
-    return this.billsService.listOwned(user);
+  list(@CurrentUser() user: JwtPayload, @Query() query: QueryBillsDto) {
+    return this.billsService.list(user, query);
   }
 
   @Get(':id')

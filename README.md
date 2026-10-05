@@ -84,19 +84,4 @@ Base URL: `http://localhost:3000/api/v1/`
 
 See [Auth API](docs/api/auth.md) for endpoint details.
 
-## Implementation Phases
-
-| Phase | Capability | Tickets | Status |
-|-------|-----------|---------|--------|
-| 1 | Identity Foundation | BB-001, BB-002, BB-003, BB-040 | ✅ Done |
-| 2 | Bill Core | BB-008–010, BB-011–013, BB-037–038 | ⬜ Pending |
-| 3 | Bill Inbox | BB-004–007 | ⬜ Pending |
-| 4 | Bill Lifecycle | BB-014–016 | ⬜ Pending |
-| 5 | Documents | BB-026–028 | ⬜ Pending |
-| 6 | Reminders | BB-017–021 | ⬜ Pending |
-| 7 | Recurring Bills | BB-022–025 | ⬜ Pending |
-| 8 | Search & History | BB-029–033 | ⬜ Pending |
-| 9 | Notifications | BB-034–036 | ⬜ Pending |
-| 10 | Duplicate Detection | BB-039 | ⬜ Pending |
-
 See [docs/PRD.md](docs/PRD.md) for the full product spec and [docs/architecture.md](docs/architecture.md) for the system design.

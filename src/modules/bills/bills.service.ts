@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/client';
+import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../database/prisma.service.js';
 import { BillEventService } from '../../common/services/bill-event.service.js';
 import { BillStatus, BillSource, BillEventType } from '../../generated/prisma/enums.js';
@@ -18,6 +19,7 @@ import type { EditBillDto } from './dto/edit-bill.dto.js';
 import type { PayBillDto } from './dto/pay-bill.dto.js';
 import type { UpdatePaymentDto } from './dto/update-payment.dto.js';
 import type { UpdateNotesDto } from './dto/update-notes.dto.js';
+import type { QueryBillsDto } from './dto/query-bills.dto.js';
 
 @Injectable()
 export class BillsService {
@@ -227,6 +229,94 @@ export class BillsService {
     await this.billEventService.record(bill.id, BillEventType.NOTE_ADDED, user.sub);
 
     return withComputedStatus(updated);
+  }
+
+  async list(user: JwtPayload, dto: QueryBillsDto) {
+    const page  = dto.page  ?? 1;
+    const limit = dto.limit ?? 20;
+    const skip  = (page - 1) * limit;
+    const sort  = dto.sort  ?? 'createdAt';
+    const order = dto.order ?? 'desc';
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    // ── Status filter → translate computed statuses into DB conditions ──
+    let statusWhere: Prisma.BillWhereInput = {};
+    if (dto.status) {
+      switch (dto.status) {
+        case 'UPCOMING':
+          statusWhere = { status: BillStatus.UNPAID, dueDate: { gt: today } };
+          break;
+        case 'DUE_TODAY':
+          statusWhere = { status: BillStatus.UNPAID, dueDate: { gte: today, lt: tomorrow } };
+          break;
+        case 'OVERDUE':
+          statusWhere = { status: BillStatus.UNPAID, dueDate: { lt: today } };
+          break;
+        case 'UNPAID':
+          // bare UNPAID = unpaid with no due date (user explicitly wants no-date bills)
+          statusWhere = { status: BillStatus.UNPAID, dueDate: null };
+          break;
+        default:
+          // INBOX, PAID — direct DB status match
+          statusWhere = { status: dto.status as BillStatus };
+      }
+    }
+
+    const where: Prisma.BillWhereInput = {
+      userId: user.sub,
+      ...statusWhere,
+
+      // Search across name and biller name
+      ...(dto.search && {
+        OR: [
+          { name: { contains: dto.search, mode: 'insensitive' } },
+          { senderBiller: { name: { contains: dto.search, mode: 'insensitive' } } },
+        ],
+      }),
+
+      ...(dto.category && { category: dto.category }),
+
+      // Bill date range
+      ...(dto.billDateFrom || dto.billDateTo ? {
+        billDate: {
+          ...(dto.billDateFrom && { gte: new Date(dto.billDateFrom) }),
+          ...(dto.billDateTo   && { lte: new Date(dto.billDateTo) }),
+        },
+      } : {}),
+
+      // Due date range
+      ...(dto.dueDateFrom || dto.dueDateTo ? {
+        dueDate: {
+          ...(dto.dueDateFrom && { gte: new Date(dto.dueDateFrom) }),
+          ...(dto.dueDateTo   && { lte: new Date(dto.dueDateTo) }),
+        },
+      } : {}),
+    };
+
+    const [bills, total] = await this.prisma.$transaction([
+      this.prisma.bill.findMany({
+        where,
+        orderBy: [{ [sort]: order }, { id: 'asc' }], // secondary sort for determinism
+        skip,
+        take: limit,
+        include: { attachments: true, senderBiller: true },
+      }),
+      this.prisma.bill.count({ where }),
+    ]);
+
+    return {
+      data: withComputedStatusMany(bills),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async listOwned(user: JwtPayload) {
