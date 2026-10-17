@@ -12,6 +12,7 @@ import { BillsModule } from './modules/bills/bills.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
 import { BillersModule } from './modules/billers/billers.module.js';
 import { RecurringModule } from './modules/recurring/recurring.module.js';
+import { AppController } from './app.controller.js';
 
 @Module({
   imports: [
@@ -28,7 +29,7 @@ import { RecurringModule } from './modules/recurring/recurring.module.js';
     BillersModule,
     RecurringModule,
   ],
-  controllers: [],
+  controllers: [AppController],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
