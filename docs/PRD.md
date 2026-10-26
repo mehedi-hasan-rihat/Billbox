@@ -106,22 +106,3 @@ BillBox notifies users about: new bill received, pending confirmation, upcoming 
 **In scope (MVP):** Bill receiving, manual creation, confirmation, 5 bill statuses, due dates, reminders, recurring bills, image/PDF attachments, search, filtering, payment records, bill history.
 
 **Out of scope:** Online payment gateway, bank account management, full personal finance management, budget planning, investment tracking, bill sharing, social features, email service, general-purpose cloud storage.
-
-## 14. Ticket Backlog (40 stories)
-
-| Phase | Tickets | Capability |
-|-------|---------|-----------|
-| 1 — Identity Foundation | BB-001, BB-002, BB-003, BB-040 | User account, BillBox ID, data isolation |
-| 2 — Bill Core | BB-008–013, BB-037, BB-038 | Create, edit, confirm, pay, notes, payment record |
-| 3 — Bill Inbox | BB-004–007 | Incoming bill receiving, attachments, inbox list, confirmation |
-| 4 — Bill Lifecycle | BB-014–016 | Automatic upcoming, overdue, lifecycle history |
-| 5 — Documents | BB-026–028 | Image upload, PDF upload, payment receipt storage |
-| 6 — Reminders | BB-017–021 | Configure, upcoming, due today, overdue reminders, preferences |
-| 7 — Recurring Bills | BB-022–025 | Setup, generate next, edit rule, stop recurring |
-| 8 — Search & History | BB-029–033 | Search, status/date/category filters, history view |
-| 9 — Notifications | BB-034–036 | New bill, confirmation pending, recurring created |
-| 10 — Duplicate Detection | BB-039 | Duplicate bill warning |
-
-## 15. Implementation Rule
-
-A ticket is a unit of work; a phase is a business capability. Related stories live inside the same domain module — not one NestJS module per ticket.

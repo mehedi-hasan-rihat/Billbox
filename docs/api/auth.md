@@ -53,7 +53,6 @@ curl -X POST http://localhost:3000/api/v1/auth/register \
 | 409 | An account with email "..." already exists |
 | 400 | Validation errors (invalid email, password too short) |
 
-**Tickets covered**: BB-001 (User Registration), BB-002 (Personal BillBox ID)
 
 ---
 
@@ -137,7 +136,6 @@ curl http://localhost:3000/api/v1/auth/me \
 }
 ```
 
-**Tickets covered**: BB-003 (BillBox ID Copy — ID is visible in profile response), BB-040 (Account Data Isolation — user can only see their own profile)
 
 ## BillBox ID Format
 
