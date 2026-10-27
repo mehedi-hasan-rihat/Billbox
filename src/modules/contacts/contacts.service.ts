@@ -5,14 +5,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service.js';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator.js';
-import type { CreateBillerDto } from './dto/create-biller.dto.js';
-import type { UpdateBillerDto } from './dto/update-biller.dto.js';
+import type { CreateContactDto } from './dto/create-contact.dto.js';
+import type { UpdateContactDto } from './dto/update-contact.dto.js';
 
 @Injectable()
-export class BillersService {
+export class ContactsService {
   constructor(private prisma: PrismaService) {}
 
-  // Look up a BillBox user by BillBox ID — used to pre-fill biller form
+  // Look up a BillBox user by BillBox ID — used to pre-fill the contact form
   async lookupBillBoxUser(billBoxId: string) {
     const user = await this.prisma.user.findUnique({
       where: { billBoxId },
@@ -24,7 +24,7 @@ export class BillersService {
     return user;
   }
 
-  async create(owner: JwtPayload, dto: CreateBillerDto) {
+  async create(owner: JwtPayload, dto: CreateContactDto) {
     if (dto.billBoxId) {
       const exists = await this.prisma.user.findUnique({
         where: { billBoxId: dto.billBoxId },
@@ -36,7 +36,7 @@ export class BillersService {
       }
     }
 
-    return this.prisma.biller.create({
+    return this.prisma.contact.create({
       data: {
         userId: owner.sub,
         name: dto.name,
@@ -49,24 +49,24 @@ export class BillersService {
   }
 
   async findAll(owner: JwtPayload) {
-    return this.prisma.biller.findMany({
+    return this.prisma.contact.findMany({
       where: { userId: owner.sub },
       orderBy: { name: 'asc' },
     });
   }
 
-  async findOne(owner: JwtPayload, billerId: string) {
-    const biller = await this.prisma.biller.findUnique({ where: { id: billerId } });
-    if (!biller || biller.userId !== owner.sub) {
-      throw new NotFoundException('Biller not found');
+  async findOne(owner: JwtPayload, contactId: string) {
+    const contact = await this.prisma.contact.findUnique({ where: { id: contactId } });
+    if (!contact || contact.userId !== owner.sub) {
+      throw new NotFoundException('Contact not found');
     }
-    return biller;
+    return contact;
   }
 
-  async update(owner: JwtPayload, billerId: string, dto: UpdateBillerDto) {
-    const biller = await this.prisma.biller.findUnique({ where: { id: billerId } });
-    if (!biller || biller.userId !== owner.sub) {
-      throw new NotFoundException('Biller not found');
+  async update(owner: JwtPayload, contactId: string, dto: UpdateContactDto) {
+    const contact = await this.prisma.contact.findUnique({ where: { id: contactId } });
+    if (!contact || contact.userId !== owner.sub) {
+      throw new NotFoundException('Contact not found');
     }
 
     if (dto.billBoxId) {
@@ -80,8 +80,8 @@ export class BillersService {
       }
     }
 
-    return this.prisma.biller.update({
-      where: { id: billerId },
+    return this.prisma.contact.update({
+      where: { id: contactId },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
@@ -92,12 +92,12 @@ export class BillersService {
     });
   }
 
-  async remove(owner: JwtPayload, billerId: string) {
-    const biller = await this.prisma.biller.findUnique({ where: { id: billerId } });
-    if (!biller || biller.userId !== owner.sub) {
-      throw new NotFoundException('Biller not found');
+  async remove(owner: JwtPayload, contactId: string) {
+    const contact = await this.prisma.contact.findUnique({ where: { id: contactId } });
+    if (!contact || contact.userId !== owner.sub) {
+      throw new NotFoundException('Contact not found');
     }
-    await this.prisma.biller.delete({ where: { id: billerId } });
+    await this.prisma.contact.delete({ where: { id: contactId } });
     return { deleted: true };
   }
 }

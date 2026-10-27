@@ -24,6 +24,7 @@ Send a bill to another user's BillBox ID. The bill lands in their inbox with `st
 | amount | number | Yes | Bill amount |
 | dueDate | ISO date string | No | Payment deadline |
 | note | string | No | |
+| confirmedStatus | `UNPAID` \| `PAID` | No | Status the bill becomes after the recipient confirms. Defaults to `UNPAID`. Set to `PAID` if the bill is already settled. |
 
 **Example Request**
 
@@ -36,7 +37,8 @@ curl -X POST http://localhost:3000/api/v1/inbox/send \
     "name": "October Internet Bill",
     "category": "INTERNET",
     "amount": 1200,
-    "dueDate": "2026-10-10"
+    "dueDate": "2026-10-10",
+    "confirmedStatus": "UNPAID"
   }'
 ```
 

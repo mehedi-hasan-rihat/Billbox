@@ -1,6 +1,6 @@
 import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
-export class UpdateBillerDto {
+export class UpdateContactDto {
   @IsString()
   @IsNotEmpty()
   @IsOptional()

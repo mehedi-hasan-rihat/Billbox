@@ -59,7 +59,7 @@ Create a new recurring rule.
 | senderBillerId | string | No | Biller from your list |
 | frequency | `MONTHLY` \| `WEEKLY` \| `YEARLY` | Yes | |
 | dayRule | string | Yes | See frequency table above |
-| generateDaysBefore | number | No | Days before due date to generate. Default: `5` |
+| generateDaysBefore | number | No | Days before due date to generate. Default: `5`. Min: `1`, Max: `30` |
 | startAt | ISO date | No | First generation start. Defaults to now |
 | endsAt | ISO date | No | When recurrence ends. Null = forever |
 
@@ -135,16 +135,16 @@ Update a recurring rule. All fields optional. Changes take effect on the next ge
 
 **Request Body**
 
-| Field | Type |
-|-------|------|
-| name | string |
-| category | BillCategory |
-| amount | string (decimal) |
-| note | string |
-| senderBillerId | string \| null |
-| dayRule | string |
-| generateDaysBefore | number |
-| endsAt | ISO date \| null |
+| Field | Type | Notes |
+|-------|------|-------|
+| name | string | |
+| category | BillCategory | |
+| amount | string (decimal) | |
+| note | string | |
+| senderBillerId | string \| null | |
+| dayRule | string | |
+| generateDaysBefore | number | Min: `1`, Max: `30` |
+| endsAt | ISO date \| null | |
 
 ---
 

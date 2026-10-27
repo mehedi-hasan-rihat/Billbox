@@ -6,9 +6,8 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
-import { BillCategory } from '../../../generated/prisma/enums.js';
+import { BillCategory, BillDirection } from '../../../generated/prisma/enums.js';
 
-// Generic edit — status transitions are NOT allowed here
 export class EditBillDto {
   @IsString()
   @IsNotEmpty()
@@ -25,14 +24,17 @@ export class EditBillDto {
 
   @IsDateString()
   @IsOptional()
-  billDate?: string;
+  issueDate?: string; // renamed from billDate
 
   @IsDateString()
   @IsOptional()
   dueDate?: string;
 
-  // Change sender biller
   @IsString()
   @IsOptional()
-  senderBillerId?: string | null;
+  contactId?: string | null;
+
+  @IsEnum(BillDirection)
+  @IsOptional()
+  direction?: BillDirection;
 }

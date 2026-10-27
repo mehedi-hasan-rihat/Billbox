@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -15,14 +16,17 @@ import { BillsService } from './bills.service.js';
 import { CreateBillDto } from './dto/create-bill.dto.js';
 import { EditBillDto } from './dto/edit-bill.dto.js';
 import { QueryBillsDto } from './dto/query-bills.dto.js';
-import { PayBillDto } from './dto/pay-bill.dto.js';
+import { AddPaymentDto } from './dto/add-payment.dto.js';
 import { UpdatePaymentDto } from './dto/update-payment.dto.js';
-import { UpdateNotesDto } from './dto/update-notes.dto.js';
+import { AddNoteDto } from './dto/add-note.dto.js';
+import { UpdateNoteDto } from './dto/update-note.dto.js';
 
 @UseGuards(JwtAuthGuard)
 @Controller({ path: 'bills', version: '1' })
 export class BillsController {
   constructor(private billsService: BillsService) {}
+
+  // ── Bills ──────────────────────────────────────────────────────────────────
 
   @Post()
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateBillDto) {
@@ -48,35 +52,71 @@ export class BillsController {
     return this.billsService.edit(user, id, dto);
   }
 
+  @Post(':id/notes')
+  addNote(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: AddNoteDto,
+  ) {
+    return this.billsService.addNote(user, id, dto);
+  }
+
+  @Patch(':id/notes/:noteIndex')
+  updateNote(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Param('noteIndex') noteIndex: string,
+    @Body() dto: UpdateNoteDto,
+  ) {
+    return this.billsService.updateNote(user, id, Number(noteIndex), dto);
+  }
+
+  @Delete(':id/notes/:noteIndex')
+  deleteNote(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Param('noteIndex') noteIndex: string,
+  ) {
+    return this.billsService.deleteNote(user, id, Number(noteIndex));
+  }
+
   @Get(':id/timeline')
   getTimeline(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.billsService.getTimeline(user, id);
   }
 
-  @Post(':id/pay')
-  pay(
+  // ── Payments ───────────────────────────────────────────────────────────────
+
+  @Post(':id/payments')
+  addPayment(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
-    @Body() dto: PayBillDto,
+    @Body() dto: AddPaymentDto,
   ) {
-    return this.billsService.pay(user, id, dto);
+    return this.billsService.addPayment(user, id, dto);
   }
 
-  @Patch(':id/payment')
+  @Get(':id/payments')
+  listPayments(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.billsService.listPayments(user, id);
+  }
+
+  @Patch(':id/payments/:paymentId')
   updatePayment(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
+    @Param('paymentId') paymentId: string,
     @Body() dto: UpdatePaymentDto,
   ) {
-    return this.billsService.updatePayment(user, id, dto);
+    return this.billsService.updatePayment(user, id, paymentId, dto);
   }
 
-  @Patch(':id/notes')
-  updateNotes(
+  @Delete(':id/payments/:paymentId')
+  deletePayment(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
-    @Body() dto: UpdateNotesDto,
+    @Param('paymentId') paymentId: string,
   ) {
-    return this.billsService.updateNotes(user, id, dto);
+    return this.billsService.deletePayment(user, id, paymentId);
   }
 }

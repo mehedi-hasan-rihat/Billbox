@@ -1,22 +1,22 @@
-# Billers API
+# Contacts API
 
-Base path: `/api/v1/billers`
+Base path: `/api/v1/contacts`
 
 All endpoints require authentication: `Authorization: Bearer <token>`
 
-A **biller** is a sender or provider in your personal list — the entity that issues bills to you (e.g. Grameenphone, DESCO, your landlord, a restaurant). Billers are private per user.
+A **contact** is a party in your personal list — someone who bills you (an expense/OUTGOING party) or someone you bill (an income/INCOMING party). Contacts are private per user.
 
-A biller can be:
-- A **BillBox user** — identified by their `billBoxId`, enabling direct inbox sending in the future
+A contact can be:
+- A **BillBox user** — identified by their `billBoxId`, enabling direct inbox sending
 - An **external party** — stored with name, phone, email, and/or address only
 
 ---
 
 ## Endpoints
 
-### GET /billers/lookup?billBoxId=
+### GET /contacts/lookup?billBoxId=
 
-Look up a BillBox user by their BillBox ID before creating a biller. Returns their public profile so you can pre-fill the biller form.
+Look up a BillBox user by their BillBox ID before creating a contact. Returns their public profile so you can pre-fill the contact form.
 
 **Query Parameters**
 
@@ -27,7 +27,7 @@ Look up a BillBox user by their BillBox ID before creating a biller. Returns the
 **Example Request**
 
 ```bash
-curl "http://localhost:3000/api/v1/billers/lookup?billBoxId=BB-A1B2-C3D4-E5F6" \
+curl "http://localhost:3000/api/v1/contacts/lookup?billBoxId=BB-A1B2-C3D4-E5F6" \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -55,9 +55,9 @@ curl "http://localhost:3000/api/v1/billers/lookup?billBoxId=BB-A1B2-C3D4-E5F6" \
 
 ---
 
-### POST /billers
+### POST /contacts
 
-Create a new biller.
+Create a new contact.
 
 **Request Body**
 
@@ -67,12 +67,12 @@ Create a new biller.
 | phone | string | No | |
 | email | string | No | Valid email |
 | address | string | No | |
-| billBoxId | string | No | If this biller is a BillBox user |
+| billBoxId | string | No | If this contact is a BillBox user |
 
-**Example — BillBox user as biller**
+**Example — BillBox user as contact**
 
 ```bash
-curl -X POST http://localhost:3000/api/v1/billers \
+curl -X POST http://localhost:3000/api/v1/contacts \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -81,10 +81,10 @@ curl -X POST http://localhost:3000/api/v1/billers \
   }'
 ```
 
-**Example — External biller**
+**Example — External contact**
 
 ```bash
-curl -X POST http://localhost:3000/api/v1/billers \
+curl -X POST http://localhost:3000/api/v1/contacts \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -123,34 +123,34 @@ curl -X POST http://localhost:3000/api/v1/billers \
 
 ---
 
-### GET /billers
+### GET /contacts
 
-List all billers belonging to the authenticated user, sorted by name.
+List all contacts belonging to the authenticated user, sorted by name.
 
 **Example Request**
 
 ```bash
-curl http://localhost:3000/api/v1/billers \
+curl http://localhost:3000/api/v1/contacts \
   -H "Authorization: Bearer <token>"
 ```
 
 ---
 
-### GET /billers/:id
+### GET /contacts/:id
 
-Get a single biller by ID.
+Get a single contact by ID.
 
 **Errors**
 
 | Status | Message |
 |--------|---------|
-| 404 | Biller not found |
+| 404 | Contact not found |
 
 ---
 
-### PATCH /billers/:id
+### PATCH /contacts/:id
 
-Update a biller. All fields are optional.
+Update a contact. All fields are optional.
 
 **Request Body**
 
@@ -167,13 +167,13 @@ Update a biller. All fields are optional.
 | Status | Message |
 |--------|---------|
 | 400 | No BillBox account found with ID "..." |
-| 404 | Biller not found |
+| 404 | Contact not found |
 
 ---
 
-### DELETE /billers/:id
+### DELETE /contacts/:id
 
-Delete a biller. Existing bills linked to this biller retain the `senderBillerId` reference in the database — the biller record is soft-removed from your list only.
+Delete a contact. Existing bills and recurring rules linked to this contact retain the `contactId` reference in the database — the contact record is removed from your list only.
 
 **Example Response (200)**
 
@@ -189,13 +189,13 @@ Delete a biller. Existing bills linked to this biller retain the `senderBillerId
 
 | Status | Message |
 |--------|---------|
-| 404 | Biller not found |
+| 404 | Contact not found |
 
 ---
 
-## Using a Biller when creating a bill
+## Using a Contact when creating a bill
 
-When creating a bill via `POST /bills`, pass the biller's ID as `senderBillerId`:
+When creating a bill via `POST /bills`, pass the contact's ID as `contactId`:
 
 ```json
 {
@@ -203,8 +203,24 @@ When creating a bill via `POST /bills`, pass the biller's ID as `senderBillerId`
   "category": "INTERNET",
   "amount": "1200.00",
   "dueDate": "2026-10-10",
-  "senderBillerId": "clx..."
+  "direction": "OUTGOING",
+  "contactId": "clx..."
 }
 ```
 
-The bill response will include the full `senderBiller` object.
+The bill response will include the full `contact` object.
+
+## Using a Contact in a recurring rule
+
+When creating a recurring rule via `POST /recurring`, pass the contact's ID as `contactId`:
+
+```json
+{
+  "name": "Monthly Internet",
+  "category": "INTERNET",
+  "amount": "1200.00",
+  "frequency": "MONTHLY",
+  "dayRule": "10",
+  "contactId": "clx..."
+}
+```

@@ -1,6 +1,6 @@
 import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
-export class CreateBillerDto {
+export class CreateContactDto {
   @IsString()
   @IsNotEmpty()
   name: string;
@@ -17,7 +17,7 @@ export class CreateBillerDto {
   @IsOptional()
   address?: string;
 
-  // If the biller is a BillBox user, provide their BillBox ID.
+  // If the contact is a BillBox user, provide their BillBox ID.
   @IsString()
   @IsOptional()
   billBoxId?: string;

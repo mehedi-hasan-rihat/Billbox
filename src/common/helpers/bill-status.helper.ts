@@ -1,52 +1,95 @@
 import { BillStatus } from '../../generated/prisma/enums.js';
+import type { Decimal } from '../../generated/prisma/internal/prismaNamespace.js';
 
-// The full status surface exposed in API responses.
-// INBOX, UNPAID, PAID are persisted. UPCOMING, DUE_TODAY and OVERDUE are computed.
-export type ApiBillStatus = BillStatus | 'UPCOMING' | 'DUE_TODAY' | 'OVERDUE';
+// Full status surface exposed in API responses.
+// INBOX, UNPAID, PARTIALLY_PAID, PAID are persisted.
+// UPCOMING, DUE_TODAY, OVERDUE are computed from UNPAID/PARTIALLY_PAID + dueDate.
+export type ApiBillStatus =
+  | BillStatus
+  | 'UPCOMING'
+  | 'DUE_TODAY'
+  | 'OVERDUE';
 
 /**
- * Computes the API status for a bill.
+ * Computes the effective API status.
  *
- * Rules:
- *  - INBOX / PAID → returned as-is
- *  - UNPAID + no due date → UNPAID
- *  - UNPAID + due date in the future → UPCOMING
- *  - UNPAID + due date is today → DUE_TODAY
- *  - UNPAID + due date passed → OVERDUE
+ * INBOX / PAID → as-is
+ * PARTIALLY_PAID + dueDate logic → PARTIALLY_PAID (no computed variants — they still owe something)
+ * UNPAID / PARTIALLY_PAID + no due date → as-is
+ * UNPAID + due in future → UPCOMING
+ * UNPAID + due today → DUE_TODAY
+ * UNPAID + due passed → OVERDUE
  */
 function computeStatus(
   persistedStatus: BillStatus,
   dueDate: Date | null,
 ): ApiBillStatus {
-  if (persistedStatus !== BillStatus.UNPAID) {
+  if (
+    persistedStatus === BillStatus.INBOX ||
+    persistedStatus === BillStatus.PAID
+  ) {
     return persistedStatus;
   }
 
-  if (!dueDate) {
-    return BillStatus.UNPAID;
+  // PARTIALLY_PAID: always show as-is regardless of due date
+  // (UI can show overdue indicator separately based on dueDate field)
+  if (persistedStatus === BillStatus.PARTIALLY_PAID) {
+    return BillStatus.PARTIALLY_PAID;
   }
 
-  const now = new Date();
+  // UNPAID — compute from dueDate
+  if (!dueDate) return BillStatus.UNPAID;
+
+  const now   = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const due = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+  const due   = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
 
   if (due < today) return 'OVERDUE';
   if (due.getTime() === today.getTime()) return 'DUE_TODAY';
   return 'UPCOMING';
 }
 
-/**
- * Returns the bill with `status` overwritten by the computed API status.
- * The DB value is never changed — only the response shape changes.
- */
-export function withComputedStatus<T extends { status: BillStatus; dueDate: Date | null }>(
-  bill: T,
-): Omit<T, 'status'> & { status: ApiBillStatus } {
-  return { ...bill, status: computeStatus(bill.status, bill.dueDate) };
+// ── Bill shape with computed fields ────────────────────────────────────────
+
+export type BillWithPayments<T> = T & {
+  payments: { amount: Decimal }[];
+};
+
+export type ComputedBill<T> = Omit<T, 'status'> & {
+  status: ApiBillStatus;
+  totalPaid: string;
+  remaining: string;
+};
+
+export function withComputedStatus<
+  T extends {
+    status: BillStatus;
+    dueDate: Date | null;
+    amount: Decimal;
+    payments: { amount: Decimal }[];
+  },
+>(bill: T): ComputedBill<T> {
+  const totalPaid = bill.payments.reduce(
+    (sum, p) => sum + Number(p.amount),
+    0,
+  );
+  const remaining = Math.max(0, Number(bill.amount) - totalPaid);
+
+  return {
+    ...bill,
+    status: computeStatus(bill.status, bill.dueDate),
+    totalPaid: totalPaid.toFixed(2),
+    remaining: remaining.toFixed(2),
+  };
 }
 
-export function withComputedStatusMany<T extends { status: BillStatus; dueDate: Date | null }>(
-  bills: T[],
-): (Omit<T, 'status'> & { status: ApiBillStatus })[] {
+export function withComputedStatusMany<
+  T extends {
+    status: BillStatus;
+    dueDate: Date | null;
+    amount: Decimal;
+    payments: { amount: Decimal }[];
+  },
+>(bills: T[]): ComputedBill<T>[] {
   return bills.map(withComputedStatus);
 }

@@ -32,7 +32,7 @@ export class UpdateRecurringRuleDto {
 
   @IsString()
   @IsOptional()
-  senderBillerId?: string | null;
+  contactId?: string | null;
 
   @IsString()
   @IsOptional()

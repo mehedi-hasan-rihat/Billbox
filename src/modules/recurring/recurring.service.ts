@@ -29,9 +29,9 @@ export class RecurringService {
   ) {}
 
   async create(user: JwtPayload, dto: CreateRecurringRuleDto) {
-    if (dto.senderBillerId) {
-      const biller = await this.prisma.biller.findUnique({ where: { id: dto.senderBillerId } });
-      if (!biller || biller.userId !== user.sub) throw new NotFoundException('Biller not found');
+    if (dto.contactId) {
+      const contact = await this.prisma.contact.findUnique({ where: { id: dto.contactId } });
+      if (!contact || contact.userId !== user.sub) throw new NotFoundException('Contact not found');
     }
 
     const generateDaysBefore = dto.generateDaysBefore ?? 5;
@@ -46,7 +46,7 @@ export class RecurringService {
         category: dto.category,
         amount: new Decimal(dto.amount),
         note: dto.note ?? null,
-        senderBillerId: dto.senderBillerId ?? null,
+        contactId: dto.contactId ?? null,
         frequency: dto.frequency,
         dayRule: dto.dayRule,
         generateDaysBefore,
@@ -74,9 +74,9 @@ export class RecurringService {
     const rule = await this.prisma.recurringRule.findUnique({ where: { id: ruleId } });
     if (!rule || rule.userId !== user.sub) throw new NotFoundException('Recurring rule not found');
 
-    if (dto.senderBillerId) {
-      const biller = await this.prisma.biller.findUnique({ where: { id: dto.senderBillerId } });
-      if (!biller || biller.userId !== user.sub) throw new NotFoundException('Biller not found');
+    if (dto.contactId) {
+      const contact = await this.prisma.contact.findUnique({ where: { id: dto.contactId } });
+      if (!contact || contact.userId !== user.sub) throw new NotFoundException('Contact not found');
     }
 
     return this.prisma.recurringRule.update({
@@ -86,7 +86,7 @@ export class RecurringService {
         ...(dto.category !== undefined && { category: dto.category }),
         ...(dto.amount !== undefined && { amount: new Decimal(dto.amount) }),
         ...(dto.note !== undefined && { note: dto.note }),
-        ...(dto.senderBillerId !== undefined && { senderBillerId: dto.senderBillerId }),
+        ...(dto.contactId !== undefined && { contactId: dto.contactId }),
         ...(dto.dayRule !== undefined && { dayRule: dto.dayRule }),
         ...(dto.generateDaysBefore !== undefined && { generateDaysBefore: dto.generateDaysBefore }),
         ...(dto.endsAt !== undefined && { endsAt: dto.endsAt ? new Date(dto.endsAt) : null }),
@@ -161,9 +161,10 @@ export class RecurringService {
               name: rule.name,
               category: rule.category,
               amount: rule.amount,
+              issueDate: now,   // auto-set to generation date
               dueDate,
-              note: rule.note ?? null,
-              senderBillerId: rule.senderBillerId ?? null,
+              notes: rule.note ? [rule.note] : [],
+              contactId: rule.contactId ?? null,
               status: BillStatus.UNPAID,
               recurringRuleId: rule.id,
             },

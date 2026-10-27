@@ -17,6 +17,12 @@ import type { JwtPayload } from '../../common/decorators/current-user.decorator.
 import type { SendBillDto } from './dto/send-bill.dto.js';
 import type { ConfirmBillDto } from './dto/confirm-bill.dto.js';
 
+const BILL_INCLUDE = {
+  attachments: true,
+  contact: true,
+  payments: { orderBy: { paidOn: 'asc' as const } },
+};
+
 @Injectable()
 export class InboxService {
   private readonly logger = new Logger(InboxService.name);
@@ -40,8 +46,6 @@ export class InboxService {
       throw new BadRequestException('You cannot send a bill to yourself');
     }
 
-    const now = new Date();
-
     const bill = await this.prisma.bill.create({
       data: {
         userId: recipient.id,
@@ -50,24 +54,20 @@ export class InboxService {
         category: dto.category,
         amount: new Decimal(String(dto.amount)),
         dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
-        note: dto.note ?? null,
+        notes: dto.note ? [dto.note] : [],
         status: BillStatus.INBOX,
         confirmedStatus: dto.confirmedStatus ?? BillStatus.UNPAID,
         receiverId: recipient.id,
         senderId: sender.sub,
-        sentAt: now,
-        receivedAt: now,
       },
-      include: { attachments: true, senderBiller: true },
+      include: BILL_INCLUDE,
     });
 
-    // Record SENT from sender's perspective, RECEIVED from recipient's perspective
     await this.billEventService.record(bill.id, BillEventType.SENT, sender.sub, {
       to: dto.recipientBillBoxId,
     });
     await this.billEventService.record(bill.id, BillEventType.RECEIVED, null, {
       from: sender.billBoxId,
-      receivedAt: now.toISOString(),
     });
 
     this.logger.log(`Bill "${bill.name}" sent by ${sender.email} → ${dto.recipientBillBoxId}`);
@@ -77,23 +77,21 @@ export class InboxService {
   async listInbox(user: JwtPayload) {
     const bills = await this.prisma.bill.findMany({
       where: { userId: user.sub, status: BillStatus.INBOX },
-      orderBy: { receivedAt: 'desc' },
-      include: { attachments: true, senderBiller: true },
+      orderBy: { createdAt: 'desc' },
+      include: BILL_INCLUDE,
     });
-
     return withComputedStatusMany(bills);
   }
 
   async getBill(user: JwtPayload, billId: string) {
     const bill = await this.prisma.bill.findUnique({
       where: { id: billId },
-      include: { attachments: true, senderBiller: true },
+      include: BILL_INCLUDE,
     });
 
     if (!bill || bill.userId !== user.sub) {
       throw new NotFoundException('Bill not found');
     }
-
     if (bill.status !== BillStatus.INBOX) {
       throw new ForbiddenException('This bill is not in your inbox');
     }
@@ -107,7 +105,6 @@ export class InboxService {
     if (!bill || bill.userId !== user.sub) {
       throw new NotFoundException('Bill not found');
     }
-
     if (bill.status !== BillStatus.INBOX) {
       throw new BadRequestException(
         `Only INBOX bills can be confirmed. Current status: ${bill.status}`,
@@ -122,11 +119,11 @@ export class InboxService {
         ...(dto.name && { name: dto.name }),
         ...(dto.category && { category: dto.category }),
         ...(dto.dueDate !== undefined && { dueDate: dto.dueDate ? new Date(dto.dueDate) : null }),
-        ...(dto.note !== undefined && { note: dto.note }),
+        ...(dto.note !== undefined && { notes: { push: dto.note } }),
         status: targetStatus,
         confirmedAt: new Date(),
       },
-      include: { attachments: true, senderBiller: true },
+      include: BILL_INCLUDE,
     });
 
     await this.billEventService.record(bill.id, BillEventType.CONFIRMED, user.sub, {

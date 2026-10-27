@@ -8,14 +8,13 @@ import {
 } from 'class-validator';
 import { PaymentMethod } from '../../../generated/prisma/enums.js';
 
-export class PayBillDto {
+export class AddPaymentDto {
+  @IsDecimal({ decimal_digits: '0,2', force_decimal: false })
+  amount: string;
+
   @IsDateString()
   @IsNotEmpty()
-  paidAt: string;
-
-  @IsDecimal({ decimal_digits: '0,2', force_decimal: false })
-  @IsOptional()
-  paidAmount?: string;
+  paidOn: string; // when this payment was made
 
   @IsEnum(PaymentMethod)
   @IsOptional()
@@ -24,4 +23,8 @@ export class PayBillDto {
   @IsString()
   @IsOptional()
   paymentReference?: string;
+
+  @IsString()
+  @IsOptional()
+  note?: string;
 }

@@ -29,7 +29,7 @@ export class CreateRecurringRuleDto {
 
   @IsString()
   @IsOptional()
-  senderBillerId?: string;
+  contactId?: string;
 
   @IsEnum(RecurringFrequency)
   frequency: RecurringFrequency;

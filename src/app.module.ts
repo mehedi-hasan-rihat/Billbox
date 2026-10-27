@@ -11,7 +11,7 @@ import { DatabaseModule } from './database/database.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { BillsModule } from './modules/bills/bills.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
-import { BillersModule } from './modules/billers/billers.module.js';
+import { ContactsModule } from './modules/contacts/contacts.module.js';
 import { RecurringModule } from './modules/recurring/recurring.module.js';
 import { AppController } from './app.controller.js';
 
@@ -27,7 +27,7 @@ import { AppController } from './app.controller.js';
     AuthModule,
     BillsModule,
     InboxModule,
-    BillersModule,
+    ContactsModule,
     RecurringModule,
   ],
   controllers: [AppController],
